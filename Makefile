@@ -1,7 +1,8 @@
 FLAGS =
 BUILDENVVAR = CGO_ENABLED=0
 TESTENVVAR =
-REGISTRY = quay.io/coreos
+REGISTRY = registry.bukalapak.io/sre
+NOCACHE   = --no-cache
 TAG = $(shell git describe --abbrev=0)
 PKGS = $(shell go list ./... | grep -v /vendor/)
 ARCH ?= $(shell go env GOARCH)
@@ -9,6 +10,7 @@ BuildDate = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 Commit = $(shell git rev-parse --short HEAD)
 ALL_ARCH = amd64 arm arm64 ppc64le s390x
 PKG=k8s.io/kube-state-metrics
+VERSION = $(shell git show -q --format=%h)
 
 IMAGE = $(REGISTRY)/kube-state-metrics
 MULTI_ARCH_IMG = $(IMAGE)-$(ARCH)
@@ -51,7 +53,8 @@ container: .container-$(ARCH)
 .container-$(ARCH):
 	cp -r * $(TEMP_DIR)
 	GOOS=$(shell uname -s | tr A-Z a-z) GOARCH=$(ARCH) $(BUILDENVVAR) go build -o $(TEMP_DIR)/kube-state-metrics
-	docker build -t $(MULTI_ARCH_IMG):$(TAG) $(TEMP_DIR)
+	docker build $(NOCACHE) -t $(IMAGE):$(VERSION) $(TEMP_DIR)
+	docker push $(IMAGE):$(VERSION) 
 
 ifeq ($(ARCH), amd64)
 	# Adding check for amd64
