@@ -137,37 +137,37 @@ var (
 	descPodContainerResourceRequestsCpuCores = prometheus.NewDesc(
 		"kube_pod_container_resource_requests_cpu_cores",
 		"The number of requested cpu cores by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceRequestsMemoryBytes = prometheus.NewDesc(
 		"kube_pod_container_resource_requests_memory_bytes",
 		"The number of requested memory bytes  by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceLimitsCpuCores = prometheus.NewDesc(
 		"kube_pod_container_resource_limits_cpu_cores",
 		"The limit on cpu cores to be used by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceLimitsMemoryBytes = prometheus.NewDesc(
 		"kube_pod_container_resource_limits_memory_bytes",
 		"The limit on memory to be used by a container in bytes.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceRequestsNvidiaGPUDevices = prometheus.NewDesc(
 		"kube_pod_container_resource_requests_nvidia_gpu_devices",
 		"The number of requested gpu devices by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceLimitsNvidiaGPUDevices = prometheus.NewDesc(
 		"kube_pod_container_resource_limits_nvidia_gpu_devices",
 		"The limit on gpu devices to be used by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 )
 
@@ -283,7 +283,10 @@ func podLabelsDesc(labelKeys []string) *prometheus.Desc {
 func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 	nodeName := p.Spec.NodeName
 	addConstMetric := func(desc *prometheus.Desc, t prometheus.ValueType, v float64, lv ...string) {
-		lv = append([]string{p.Namespace, p.Name}, lv...)
+		// XXX disini tempat nambahin value namespace sama value nama pod.
+		// XXX keynya ada di desc, valuenya ada di lv (desc di prometheus.NewDesc, key ada di param ke 3)
+		lv = append([]string{p.Namespace, p.Name}, lv...) // XXX buat default valuenya 2, namespace dan name, sisanya adalah lv.
+		// XXX kalo ga sama panjang antara key ama value, error inkonsisten
 		ch <- prometheus.MustNewConstMetric(desc, t, v, lv...)
 	}
 	addGauge := func(desc *prometheus.Desc, v float64, lv ...string) {
@@ -362,6 +365,9 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 		return cs.State.Terminated.Reason == reason
 	}
 
+	// XXX disini tempat buat list semua status VS semua pod. untuk waiting dan terminated ada list of reasonnya, dan bisa >1 entry
+
+	containerTextStatuses := make(map[string]string)
 	for _, cs := range p.Status.ContainerStatuses {
 		addGauge(descPodContainerInfo, 1,
 			cs.Name, cs.Image, cs.ImageID, cs.ContainerID,
@@ -377,37 +383,52 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 		}
 		addGauge(descPodContainerStatusReady, boolFloat64(cs.Ready), cs.Name)
 		addCounter(descPodContainerStatusRestarts, float64(cs.RestartCount), cs.Name)
+
+		if cs.State.Waiting != nil {
+			containerTextStatuses[cs.Name] = "waiting"
+
+		} else if cs.State.Running != nil {
+			containerTextStatuses[cs.Name] = "running"
+
+		} else if cs.State.Terminated != nil {
+			containerTextStatuses[cs.Name] = "terminated"
+
+		}
 	}
 
 	for _, c := range p.Spec.Containers {
 		req := c.Resources.Requests
 		lim := c.Resources.Limits
 
+		containerStatus := containerTextStatuses[c.Name]
+
 		if cpu, ok := req[v1.ResourceCPU]; ok {
 			addGauge(descPodContainerResourceRequestsCpuCores, float64(cpu.MilliValue())/1000,
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 		if mem, ok := req[v1.ResourceMemory]; ok {
 			addGauge(descPodContainerResourceRequestsMemoryBytes, float64(mem.Value()),
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 
 		if gpu, ok := req[v1.ResourceNvidiaGPU]; ok {
-			addGauge(descPodContainerResourceRequestsNvidiaGPUDevices, float64(gpu.Value()), c.Name, nodeName)
+			addGauge(descPodContainerResourceRequestsNvidiaGPUDevices, float64(gpu.Value()),
+				c.Name, nodeName, containerStatus)
 		}
 
 		if cpu, ok := lim[v1.ResourceCPU]; ok {
 			addGauge(descPodContainerResourceLimitsCpuCores, float64(cpu.MilliValue())/1000,
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 
 		if mem, ok := lim[v1.ResourceMemory]; ok {
 			addGauge(descPodContainerResourceLimitsMemoryBytes, float64(mem.Value()),
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 
 		if gpu, ok := lim[v1.ResourceNvidiaGPU]; ok {
-			addGauge(descPodContainerResourceLimitsNvidiaGPUDevices, float64(gpu.Value()), c.Name, nodeName)
+			addGauge(descPodContainerResourceLimitsNvidiaGPUDevices, float64(gpu.Value()),
+				c.Name, nodeName, containerStatus)
 		}
 	}
 }
