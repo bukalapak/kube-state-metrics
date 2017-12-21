@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: kube-state-metrics
@@ -19,11 +19,11 @@ spec:
         image: quay.io/coreos/kube-state-metrics:v1.1.0
         ports:
         - name: http-metrics
-          containerPort: 8080
+          containerPort: 8099
         readinessProbe:
           httpGet:
             path: /healthz
-            port: 8080
+            port: 8099
           initialDelaySeconds: 5
           timeoutSeconds: 5
       - name: addon-resizer
