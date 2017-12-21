@@ -86,6 +86,7 @@ var (
 	}
 )
 
+// testing post-commit hook
 type collectorSet map[string]struct{}
 
 func (c *collectorSet) String() string {
