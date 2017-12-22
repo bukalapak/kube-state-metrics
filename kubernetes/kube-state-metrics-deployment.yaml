@@ -18,7 +18,7 @@ spec:
       - name: blregistry
       containers:
       - name: kube-state-metrics
-        image: registry.bukalapak.io/sre/kube-state-metrics:bf6a96e
+        image: registry.bukalapak.io/sre/kube-state-metrics:aab5f1d
         ports:
         - name: http-metrics
           containerPort: 8080
