@@ -14,16 +14,18 @@ spec:
         k8s-app: kube-state-metrics
     spec:
       serviceAccountName: kube-state-metrics
+      imagePullSecrets:
+      - name: blregistry
       containers:
       - name: kube-state-metrics
         image: registry.bukalapak.io/sre/kube-state-metrics:bf6a96e
         ports:
         - name: http-metrics
-          containerPort: 8099
+          containerPort: 8080
         readinessProbe:
           httpGet:
             path: /healthz
-            port: 8099
+            port: 8080
           initialDelaySeconds: 5
           timeoutSeconds: 5
       - name: addon-resizer

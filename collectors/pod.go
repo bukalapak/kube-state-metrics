@@ -283,10 +283,7 @@ func podLabelsDesc(labelKeys []string) *prometheus.Desc {
 func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 	nodeName := p.Spec.NodeName
 	addConstMetric := func(desc *prometheus.Desc, t prometheus.ValueType, v float64, lv ...string) {
-		// XXX disini tempat nambahin value namespace sama value nama pod.
-		// XXX keynya ada di desc, valuenya ada di lv (desc di prometheus.NewDesc, key ada di param ke 3)
-		lv = append([]string{p.Namespace, p.Name}, lv...) // XXX buat default valuenya 2, namespace dan name, sisanya adalah lv.
-		// XXX kalo ga sama panjang antara key ama value, error inkonsisten
+		lv = append([]string{p.Namespace, p.Name}, lv...)
 		ch <- prometheus.MustNewConstMetric(desc, t, v, lv...)
 	}
 	addGauge := func(desc *prometheus.Desc, v float64, lv ...string) {
@@ -365,8 +362,6 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 		return cs.State.Terminated.Reason == reason
 	}
 
-	// XXX disini tempat buat list semua status VS semua pod. untuk waiting dan terminated ada list of reasonnya, dan bisa >1 entry
-
 	containerTextStatuses := make(map[string]string)
 	for _, cs := range p.Status.ContainerStatuses {
 		addGauge(descPodContainerInfo, 1,
@@ -392,7 +387,6 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 
 		} else if cs.State.Terminated != nil {
 			containerTextStatuses[cs.Name] = "terminated"
-
 		}
 	}
 
@@ -406,6 +400,7 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 			addGauge(descPodContainerResourceRequestsCpuCores, float64(cpu.MilliValue())/1000,
 				c.Name, nodeName, containerStatus)
 		}
+
 		if mem, ok := req[v1.ResourceMemory]; ok {
 			addGauge(descPodContainerResourceRequestsMemoryBytes, float64(mem.Value()),
 				c.Name, nodeName, containerStatus)
