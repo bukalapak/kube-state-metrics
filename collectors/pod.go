@@ -89,7 +89,7 @@ var (
 	descPodContainerInfo = prometheus.NewDesc(
 		"kube_pod_container_info",
 		"Information about a container in a pod.",
-		[]string{"namespace", "pod", "container", "image", "image_id", "container_id"}, nil,
+		[]string{"namespace", "pod", "container", "image", "image_id", "container_id", "status"}, nil,
 	)
 
 	descPodContainerStatusWaiting = prometheus.NewDesc(
@@ -364,8 +364,19 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 
 	containerTextStatuses := make(map[string]string)
 	for _, cs := range p.Status.ContainerStatuses {
+
+		if cs.State.Waiting != nil {
+			containerTextStatuses[cs.Name] = "waiting"
+
+		} else if cs.State.Running != nil {
+			containerTextStatuses[cs.Name] = "running"
+
+		} else if cs.State.Terminated != nil {
+			containerTextStatuses[cs.Name] = "terminated"
+		}
+
 		addGauge(descPodContainerInfo, 1,
-			cs.Name, cs.Image, cs.ImageID, cs.ContainerID,
+			cs.Name, cs.Image, cs.ImageID, cs.ContainerID, containerTextStatuses[cs.Name],
 		)
 		addGauge(descPodContainerStatusWaiting, boolFloat64(cs.State.Waiting != nil), cs.Name)
 		for _, reason := range containerWaitingReasons {
@@ -378,16 +389,6 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 		}
 		addGauge(descPodContainerStatusReady, boolFloat64(cs.Ready), cs.Name)
 		addCounter(descPodContainerStatusRestarts, float64(cs.RestartCount), cs.Name)
-
-		if cs.State.Waiting != nil {
-			containerTextStatuses[cs.Name] = "waiting"
-
-		} else if cs.State.Running != nil {
-			containerTextStatuses[cs.Name] = "running"
-
-		} else if cs.State.Terminated != nil {
-			containerTextStatuses[cs.Name] = "terminated"
-		}
 	}
 
 	for _, c := range p.Spec.Containers {
