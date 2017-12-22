@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: kube-state-metrics
@@ -14,9 +14,11 @@ spec:
         k8s-app: kube-state-metrics
     spec:
       serviceAccountName: kube-state-metrics
+      imagePullSecrets:
+      - name: blregistry
       containers:
       - name: kube-state-metrics
-        image: quay.io/coreos/kube-state-metrics:v1.1.0
+        image: registry.bukalapak.io/sre/kube-state-metrics:0d95b15
         ports:
         - name: http-metrics
           containerPort: 8080
