@@ -54,11 +54,11 @@ container: .container-$(ARCH)
 	cp -r * $(TEMP_DIR)
 	GOOS=$(shell uname -s | tr A-Z a-z) GOARCH=$(ARCH) $(BUILDENVVAR) go build -o $(TEMP_DIR)/kube-state-metrics
 	docker build $(NOCACHE) -t $(IMAGE):$(VERSION) $(TEMP_DIR)
-	docker push $(IMAGE):$(VERSION) 
+	docker push $(IMAGE):$(VERSION)
 
 ifeq ($(ARCH), amd64)
 	# Adding check for amd64
-	docker tag $(MULTI_ARCH_IMG):$(TAG) $(IMAGE):$(TAG)
+	docker tag $(IMAGE):$(VERSION) $(IMAGE):$(VERSION)
 endif
 
 
