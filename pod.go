@@ -69,7 +69,7 @@ var (
 	descPodContainerInfo = prometheus.NewDesc(
 		"kube_pod_container_info",
 		"Information about a container in a pod.",
-		[]string{"namespace", "pod", "container", "image", "image_id", "container_id"}, nil,
+		[]string{"namespace", "pod", "container", "image", "image_id", "container_id", "status"}, nil,
 	)
 
 	descPodContainerStatusWaiting = prometheus.NewDesc(
@@ -105,25 +105,25 @@ var (
 	descPodContainerResourceRequestsCpuCores = prometheus.NewDesc(
 		"kube_pod_container_resource_requests_cpu_cores",
 		"The number of requested cpu cores by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceRequestsMemoryBytes = prometheus.NewDesc(
 		"kube_pod_container_resource_requests_memory_bytes",
 		"The number of requested memory bytes  by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceLimitsCpuCores = prometheus.NewDesc(
 		"kube_pod_container_resource_limits_cpu_cores",
 		"The limit on cpu cores to be used by a container.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 
 	descPodContainerResourceLimitsMemoryBytes = prometheus.NewDesc(
 		"kube_pod_container_resource_limits_memory_bytes",
 		"The limit on memory to be used by a container in bytes.",
-		[]string{"namespace", "pod", "container", "node"}, nil,
+		[]string{"namespace", "pod", "container", "node", "status"}, nil,
 	)
 )
 
@@ -253,9 +253,19 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 		}
 	}
 
+	containerTextStatuses := make(map[string]string)
 	for _, cs := range p.Status.ContainerStatuses {
+
+		if cs.State.Waiting != nil {
+			containerTextStatuses[cs.Name] = "waiting"
+		} else if cs.State.Running != nil {
+			containerTextStatuses[cs.Name] = "running"
+		} else if cs.State.Terminated != nil {
+			containerTextStatuses[cs.Name] = "terminated"
+		}
+
 		addGauge(descPodContainerInfo, 1,
-			cs.Name, cs.Image, cs.ImageID, cs.ContainerID,
+			cs.Name, cs.Image, cs.ImageID, cs.ContainerID, containerTextStatuses[cs.Name],
 		)
 		addGauge(descPodContainerStatusWaiting, boolFloat64(cs.State.Waiting != nil), cs.Name)
 		addGauge(descPodContainerStatusRunning, boolFloat64(cs.State.Running != nil), cs.Name)
@@ -267,23 +277,24 @@ func (pc *podCollector) collectPod(ch chan<- prometheus.Metric, p v1.Pod) {
 	for _, c := range p.Spec.Containers {
 		req := c.Resources.Requests
 		lim := c.Resources.Limits
+		containerStatus := containerTextStatuses[c.Name]
 
 		if cpu, ok := req[v1.ResourceCPU]; ok {
 			addGauge(descPodContainerResourceRequestsCpuCores, float64(cpu.MilliValue())/1000,
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 		if mem, ok := req[v1.ResourceMemory]; ok {
 			addGauge(descPodContainerResourceRequestsMemoryBytes, float64(mem.Value()),
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 
 		if cpu, ok := lim[v1.ResourceCPU]; ok {
 			addGauge(descPodContainerResourceLimitsCpuCores, float64(cpu.MilliValue())/1000,
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 		if mem, ok := lim[v1.ResourceMemory]; ok {
 			addGauge(descPodContainerResourceLimitsMemoryBytes, float64(mem.Value()),
-				c.Name, nodeName)
+				c.Name, nodeName, containerStatus)
 		}
 	}
 }

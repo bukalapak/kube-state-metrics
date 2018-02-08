@@ -18,7 +18,9 @@ package main
 
 import (
 	"testing"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/api/v1"
 )
@@ -85,6 +87,15 @@ func TestPodCollector(t *testing.T) {
 								Image:       "gcr.io/google_containers/hyperkube1",
 								ImageID:     "docker://sha256:aaa",
 								ContainerID: "docker://ab123",
+								State: v1.ContainerState{
+									Running: &v1.ContainerStateRunning{
+										StartedAt: metav1.Time{
+											Time: time.Now(),
+										},
+									},
+									Waiting:    nil,
+									Terminated: nil,
+								},
 							},
 						},
 					},
@@ -100,21 +111,46 @@ func TestPodCollector(t *testing.T) {
 								Image:       "gcr.io/google_containers/hyperkube2",
 								ImageID:     "docker://sha256:bbb",
 								ContainerID: "docker://cd456",
+								State: v1.ContainerState{
+									Running: nil,
+									Waiting: &v1.ContainerStateWaiting{
+										Reason:  "some reason",
+										Message: "some message",
+									},
+									Terminated: nil,
+								},
 							},
 							v1.ContainerStatus{
 								Name:        "container3",
 								Image:       "gcr.io/google_containers/hyperkube3",
 								ImageID:     "docker://sha256:ccc",
 								ContainerID: "docker://ef789",
+								State: v1.ContainerState{
+									Running: nil,
+									Waiting: nil,
+									Terminated: &v1.ContainerStateTerminated{
+										ExitCode: 0,
+										Signal:   0,
+										Reason:   "some reason",
+										Message:  "some message",
+										StartedAt: metav1.Time{
+											Time: time.Now(),
+										},
+										FinishedAt: metav1.Time{
+											Time: time.Now(),
+										},
+										ContainerID: "container3",
+									},
+								},
 							},
 						},
 					},
 				},
 			},
 			want: metadata + `
-				kube_pod_container_info{container="container1",container_id="docker://ab123",image="gcr.io/google_containers/hyperkube1",image_id="docker://sha256:aaa",namespace="ns1",pod="pod1"} 1
-				kube_pod_container_info{container="container2",container_id="docker://cd456",image="gcr.io/google_containers/hyperkube2",image_id="docker://sha256:bbb",namespace="ns2",pod="pod2"} 1
-				kube_pod_container_info{container="container3",container_id="docker://ef789",image="gcr.io/google_containers/hyperkube3",image_id="docker://sha256:ccc",namespace="ns2",pod="pod2"} 1
+				kube_pod_container_info{container="container1",container_id="docker://ab123",image="gcr.io/google_containers/hyperkube1",image_id="docker://sha256:aaa",namespace="ns1",pod="pod1",status="running"} 1
+				kube_pod_container_info{container="container2",container_id="docker://cd456",image="gcr.io/google_containers/hyperkube2",image_id="docker://sha256:bbb",namespace="ns2",pod="pod2",status="waiting"} 1
+				kube_pod_container_info{container="container3",container_id="docker://ef789",image="gcr.io/google_containers/hyperkube3",image_id="docker://sha256:ccc",namespace="ns2",pod="pod2",status="terminated"} 1
 				`,
 			metrics: []string{"kube_pod_container_info"},
 		}, {
@@ -396,6 +432,39 @@ func TestPodCollector(t *testing.T) {
 						Name:      "pod1",
 						Namespace: "ns1",
 					},
+					Status: v1.PodStatus{
+						ContainerStatuses: []v1.ContainerStatus{
+							v1.ContainerStatus{
+								Name:        "pod1_con1",
+								Image:       "gcr.io/google_containers/hyperkube2",
+								ImageID:     "docker://sha256:bbb",
+								ContainerID: "docker://cd456",
+								State: v1.ContainerState{
+									Running: &v1.ContainerStateRunning{
+										StartedAt: metav1.Time{
+											Time: time.Now(),
+										},
+									},
+									Waiting:    nil,
+									Terminated: nil,
+								},
+							},
+							v1.ContainerStatus{
+								Name:        "pod1_con2",
+								Image:       "gcr.io/google_containers/hyperkube2",
+								ImageID:     "docker://sha256:bbb",
+								ContainerID: "docker://cd456",
+								State: v1.ContainerState{
+									Running: nil,
+									Waiting: &v1.ContainerStateWaiting{
+										Reason:  "some reason",
+										Message: "some message",
+									},
+									Terminated: nil,
+								},
+							},
+						},
+					},
 					Spec: v1.PodSpec{
 						NodeName: "node1",
 						Containers: []v1.Container{
@@ -431,6 +500,48 @@ func TestPodCollector(t *testing.T) {
 					ObjectMeta: v1.ObjectMeta{
 						Name:      "pod2",
 						Namespace: "ns2",
+					},
+					Status: v1.PodStatus{
+						ContainerStatuses: []v1.ContainerStatus{
+							v1.ContainerStatus{
+								Name:        "pod2_con1",
+								Image:       "gcr.io/google_containers/hyperkube2",
+								ImageID:     "docker://sha256:bbb",
+								ContainerID: "docker://cd456",
+								State: v1.ContainerState{
+									Running: nil,
+									Waiting: nil,
+									Terminated: &v1.ContainerStateTerminated{
+										ExitCode: 0,
+										Signal:   0,
+										Reason:   "some reason",
+										Message:  "some message",
+										StartedAt: metav1.Time{
+											Time: time.Now(),
+										},
+										FinishedAt: metav1.Time{
+											Time: time.Now(),
+										},
+										ContainerID: "pod2_con1",
+									},
+								},
+							},
+							v1.ContainerStatus{
+								Name:        "pod2_con2",
+								Image:       "gcr.io/google_containers/hyperkube2",
+								ImageID:     "docker://sha256:bbb",
+								ContainerID: "docker://cd456",
+								State: v1.ContainerState{
+									Running: &v1.ContainerStateRunning{
+										StartedAt: metav1.Time{
+											Time: time.Now(),
+										},
+									},
+									Waiting:    nil,
+									Terminated: nil,
+								},
+							},
+						},
 					},
 					Spec: v1.PodSpec{
 						NodeName: "node2",
@@ -470,22 +581,22 @@ func TestPodCollector(t *testing.T) {
 				},
 			},
 			want: metadata + `
-				kube_pod_container_resource_requests_cpu_cores{container="pod1_con1",namespace="ns1",node="node1",pod="pod1"} 0.2
-				kube_pod_container_resource_requests_cpu_cores{container="pod1_con2",namespace="ns1",node="node1",pod="pod1"} 0.3
-				kube_pod_container_resource_requests_cpu_cores{container="pod2_con1",namespace="ns2",node="node2",pod="pod2"} 0.4
-				kube_pod_container_resource_requests_cpu_cores{container="pod2_con2",namespace="ns2",node="node2",pod="pod2"} 0.5
-				kube_pod_container_resource_requests_memory_bytes{container="pod1_con1",namespace="ns1",node="node1",pod="pod1"} 1e+08
-				kube_pod_container_resource_requests_memory_bytes{container="pod1_con2",namespace="ns1",node="node1",pod="pod1"} 2e+08
-				kube_pod_container_resource_requests_memory_bytes{container="pod2_con1",namespace="ns2",node="node2",pod="pod2"} 3e+08
-				kube_pod_container_resource_requests_memory_bytes{container="pod2_con2",namespace="ns2",node="node2",pod="pod2"} 4e+08
-				kube_pod_container_resource_limits_cpu_cores{container="pod1_con1",namespace="ns1",node="node1",pod="pod1"} 0.2
-				kube_pod_container_resource_limits_cpu_cores{container="pod1_con2",namespace="ns1",node="node1",pod="pod1"} 0.3
-				kube_pod_container_resource_limits_cpu_cores{container="pod2_con1",namespace="ns2",node="node2",pod="pod2"} 0.4
-				kube_pod_container_resource_limits_cpu_cores{container="pod2_con2",namespace="ns2",node="node2",pod="pod2"} 0.5
-				kube_pod_container_resource_limits_memory_bytes{container="pod1_con1",namespace="ns1",node="node1",pod="pod1"} 1e+08
-				kube_pod_container_resource_limits_memory_bytes{container="pod1_con2",namespace="ns1",node="node1",pod="pod1"} 2e+08
-				kube_pod_container_resource_limits_memory_bytes{container="pod2_con1",namespace="ns2",node="node2",pod="pod2"} 3e+08
-				kube_pod_container_resource_limits_memory_bytes{container="pod2_con2",namespace="ns2",node="node2",pod="pod2"} 4e+08
+				kube_pod_container_resource_requests_cpu_cores{container="pod1_con1",namespace="ns1",node="node1",pod="pod1",status="running"} 0.2
+				kube_pod_container_resource_requests_cpu_cores{container="pod1_con2",namespace="ns1",node="node1",pod="pod1",status="waiting"} 0.3
+				kube_pod_container_resource_requests_cpu_cores{container="pod2_con1",namespace="ns2",node="node2",pod="pod2",status="terminated"} 0.4
+				kube_pod_container_resource_requests_cpu_cores{container="pod2_con2",namespace="ns2",node="node2",pod="pod2",status="running"} 0.5
+				kube_pod_container_resource_requests_memory_bytes{container="pod1_con1",namespace="ns1",node="node1",pod="pod1",status="running"} 1e+08
+				kube_pod_container_resource_requests_memory_bytes{container="pod1_con2",namespace="ns1",node="node1",pod="pod1",status="waiting"} 2e+08
+				kube_pod_container_resource_requests_memory_bytes{container="pod2_con1",namespace="ns2",node="node2",pod="pod2",status="terminated"} 3e+08
+				kube_pod_container_resource_requests_memory_bytes{container="pod2_con2",namespace="ns2",node="node2",pod="pod2",status="running"} 4e+08
+				kube_pod_container_resource_limits_cpu_cores{container="pod1_con1",namespace="ns1",node="node1",pod="pod1",status="running"} 0.2
+				kube_pod_container_resource_limits_cpu_cores{container="pod1_con2",namespace="ns1",node="node1",pod="pod1",status="waiting"} 0.3
+				kube_pod_container_resource_limits_cpu_cores{container="pod2_con1",namespace="ns2",node="node2",pod="pod2",status="terminated"} 0.4
+				kube_pod_container_resource_limits_cpu_cores{container="pod2_con2",namespace="ns2",node="node2",pod="pod2",status="running"} 0.5
+				kube_pod_container_resource_limits_memory_bytes{container="pod1_con1",namespace="ns1",node="node1",pod="pod1",status="running"} 1e+08
+				kube_pod_container_resource_limits_memory_bytes{container="pod1_con2",namespace="ns1",node="node1",pod="pod1",status="waiting"} 2e+08
+				kube_pod_container_resource_limits_memory_bytes{container="pod2_con1",namespace="ns2",node="node2",pod="pod2",status="terminated"} 3e+08
+				kube_pod_container_resource_limits_memory_bytes{container="pod2_con2",namespace="ns2",node="node2",pod="pod2",status="running"} 4e+08
 		`,
 			metrics: []string{
 				"kube_pod_container_resource_requests_cpu_cores",
